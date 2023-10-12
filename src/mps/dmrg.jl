@@ -229,9 +229,6 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
       PH = disk(PH; path=write_path)
     end
   end
-  if save_times < sweeps
-    save_times = floor(sweeps / 2)
-  end
   PH = position!(PH, psi, 1)
   energy = 0.0
   for sw in 1:nsweep(sweeps)
