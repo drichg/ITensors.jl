@@ -177,7 +177,8 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
     kwargs, :write_when_maxdim_exceeds, nothing
   )
   write_path = get(kwargs, :write_path, tempdir())
-
+  save_path = get(kwargs, :save_path, nothing)
+  save_times = get(kwargs, :save_times, 5) # save every save_times sweeps
   # eigsolve kwargs
   eigsolve_tol::Number = get(kwargs, :eigsolve_tol, 1e-14)
   eigsolve_krylovdim::Int = get(kwargs, :eigsolve_krylovdim, 3)
@@ -224,19 +225,28 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
 
   if !isnothing(write_when_maxdim_exceeds)
     if (maxlinkdim(psi) > write_when_maxdim_exceeds) ||
-      (maxdim(sweeps, 1) > write_when_maxdim_exceeds)
+       (maxdim(sweeps, 1) > write_when_maxdim_exceeds)
       PH = disk(PH; path=write_path)
     end
   end
+  if save_times < sweeps
+    save_times = floor(sweeps / 2)
+  end
   PH = position!(PH, psi, 1)
   energy = 0.0
-
   for sw in 1:nsweep(sweeps)
+    # Write MPS to disk every 5 sweeps
+    # if !isnothing(save_path) && sw % save_times == 0
+    #   f = h5open("$(save_path).h5", "w")
+    #   write(f, "psi", psi)
+    #   close(f)
+    #   println("Wrote MPS to $(save_path).h5")
+    # end
     sw_time = @elapsed begin
       maxtruncerr = 0.0
 
       if !isnothing(write_when_maxdim_exceeds) &&
-        maxdim(sweeps, sw) > write_when_maxdim_exceeds
+         maxdim(sweeps, sw) > write_when_maxdim_exceeds
         if outputlevel >= 2
           println(
             "\nWriting environment tensors do disk (write_when_maxdim_exceeds = $write_when_maxdim_exceeds and maxdim(sweeps, sw) = $(maxdim(sweeps, sw))).\nFiles located at path=$write_path\n",
@@ -261,7 +271,7 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
         end
 
         @timeit_debug timer "dmrg: psi[b]*psi[b+1]" begin
-          phi = psi[b] * psi[b + 1]
+          phi = psi[b] * psi[b+1]
         end
 
         @timeit_debug timer "dmrg: eigsolve" begin
@@ -273,7 +283,7 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
             ishermitian=ishermitian,
             tol=eigsolve_tol,
             krylovdim=eigsolve_krylovdim,
-            maxiter=eigsolve_maxiter,
+            maxiter=eigsolve_maxiter
           )
         end
 
@@ -307,7 +317,7 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
             ortho=ortho,
             normalize=true,
             which_decomp=which_decomp,
-            svd_alg=svd_alg,
+            svd_alg=svd_alg
           )
         end
         maxtruncerr = max(maxtruncerr, spec.truncerr)
@@ -342,7 +352,7 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
           half_sweep=ha,
           spec=spec,
           outputlevel=outputlevel,
-          sweep_is_done=sweep_is_done,
+          sweep_is_done=sweep_is_done
         )
       end
     end
@@ -356,6 +366,12 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
         sw_time
       )
       flush(stdout)
+    end
+    if !isnothing(save_path) && sw % save_times == 0
+      f = h5open("$(save_path).h5", "w")
+      write(f, "psi", psi)
+      close(f)
+      println("Wrote MPS to $(save_path).h5")
     end
     isdone = checkdone!(obs; energy=energy, psi=psi, sweep=sw, outputlevel=outputlevel)
     isdone && break
