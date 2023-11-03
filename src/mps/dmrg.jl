@@ -231,6 +231,7 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
   end
   PH = position!(PH, psi, 1)
   energy = 0.0
+  energy = 1.0
   for sw in 1:nsweep(sweeps)
     # Write MPS to disk every 5 sweeps
     # if !isnothing(save_path) && sw % save_times == 0
@@ -353,16 +354,22 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
         )
       end
     end
+    error = abs(energy - energy0)
+    energy0 = energy
     if outputlevel >= 1
       @printf(
-        "After sweep %d energy=%s  maxlinkdim=%d maxerr=%.2E time=%.3f\n",
+        "After sweep %d energy=%s  energydiff=%s maxlinkdim=%d maxerr=%.2E time=%.3f\n",
         sw,
         energy,
+        error,
         maxlinkdim(psi),
         maxtruncerr,
         sw_time
       )
       flush(stdout)
+    end
+    if error < 1e-6
+      break
     end
     if !isnothing(save_path) && sw % save_times == 0
       f = h5open("$(save_path).h5", "w")
