@@ -146,7 +146,7 @@ Optional keyword arguments:
      value, begin saving tensors to disk to free RAM memory in large calculations
   - `write_path::String = tempdir()` - path to use to save files to disk
      (to save RAM) when maxdim exceeds the `write_when_maxdim_exceeds` option, if set
-
+  -  GCstep::Int = 0 - `GC.gc()` manually after GCstep steps if nonzero.
 [^krylovkit]:
 
     The `dmrg` function in `ITensors.jl` currently uses the `eigsolve`
@@ -184,7 +184,7 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
   eigsolve_krylovdim::Int = get(kwargs, :eigsolve_krylovdim, 3)
   eigsolve_maxiter::Int = get(kwargs, :eigsolve_maxiter, 1)
   eigsolve_verbosity::Int = get(kwargs, :eigsolve_verbosity, 0)
-
+  GCstep = get(kwargs, :GCstep, 0)
   ishermitian::Bool = get(kwargs, :ishermitian, true)
 
   # TODO: add support for targeting other states with DMRG
@@ -230,7 +230,7 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
     end
   end
   PH = position!(PH, psi, 1)
-  energy = 0.0
+  energy0 = 0.0
   energy = 1.0
   for sw in 1:nsweep(sweeps)
     # Write MPS to disk every 5 sweeps
@@ -376,6 +376,10 @@ function dmrg(PH, psi0::MPS, sweeps::Sweeps; kwargs...)
       write(f, "psi", psi)
       close(f)
       println("Wrote MPS to $(save_path).h5")
+    end
+    if GCstep > 0 && sw % GCstep == 0
+      println("Garbage Collection")
+      GC.gc()
     end
     isdone = checkdone!(obs; energy=energy, psi=psi, sweep=sw, outputlevel=outputlevel)
     isdone && break
